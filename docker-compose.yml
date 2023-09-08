@@ -1,0 +1,117 @@
+version: "3.8"
+services:
+  rabbitmq:
+    image: "rabbitmq:3-management-alpine"
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    volumes:
+      - ~/.docker-conf/rabbitmq/data/:/var/lib/rabbitmq/
+    healthcheck:
+        test: [ "CMD", "rabbitmqctl", "status" ]
+        interval: 30s
+        timeout: 10s
+        retries: 5
+    networks:
+      - intranet
+      - extranet
+
+  db:
+    build:
+      context: .
+      dockerfile: service/Dockerfile-postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - ~/.docker-conf/db/data/:/var/lib/db/
+    environment:
+     - POSTGRES_DB=chat
+     - POSTGRES_USER=postgres
+     - POSTGRES_PASSWORD=postgres
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - intranet
+
+  service:
+    build:
+      context: .
+      dockerfile: service/Dockerfile
+    ports:
+      - '9010:9010'
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 100M
+    environment:
+      - PORT=9010
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_DATABASE=chat
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=postgres
+      - JWT_SECRET=s3cr3t
+      - JWT_TTL=99999
+      - CORS_DEBUG=false
+      - RABBIT_USERNAME=guest
+      - RABBIT_PASSWORD=guest
+      - RABBIT_HOST=rabbitmq
+      - RABBIT_PORT=5672
+      - RECEIVER_QUEUE=stockbot-publisher
+      - PUBLISHER_QUEUE=stockbot-receiver
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - intranet
+      - extranet
+
+  bot:
+    build:
+      context: .
+      dockerfile: bot/Dockerfile
+    ports:
+      - '9013:9013'
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 100M
+    environment:
+      - RABBIT_USERNAME=guest
+      - RABBIT_PASSWORD=guest
+      - RABBIT_HOST=rabbitmq
+      - RABBIT_PORT=5672
+      - RECEIVER_QUEUE=stockbot-receiver
+      - PUBLISHER_QUEUE=stockbot-publisher
+      - STOCK_SERVICE_URL=https://stooq.com/q/l/?s=%s&f=sd2t2ohlcv&h&e=csv
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - intranet
+      - extranet
+
+  front:
+    build:
+      context: .
+      dockerfile: front/Dockerfile
+    ports:
+      - "3000:3000"
+
+networks:
+  intranet:
+    name: intranet-network
+    internal: true
+  extranet:
+    name: extranet-network
+
