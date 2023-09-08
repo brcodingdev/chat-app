@@ -1,4 +1,4 @@
-## Chat Application
+# Chat App
 React Chat application is a user-friendly and interactive platform that allows users to engage in real-time conversations. The application features a unique command bot that provides stock market information upon receiving specific commands. One such command, for example, is `/stock=aapl.us`, which triggers the stock-bot to fetch and display the latest stock information for the AAPL (Apple Inc.) stock traded on the US market.
 
 # Bot Service
